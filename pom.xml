@@ -10,17 +10,17 @@
 	</prerequisites>
 
 	<groupId>org.sunbird.obsrv</groupId>
-	<artifactId>core</artifactId>
+	<artifactId>connectors</artifactId>
 	<version>1.0</version>
 	<packaging>pom</packaging>
-	<name>Obsrv Core</name>
+	<name>Obsrv Connectors</name>
 	<description>
-		Obsrv Core
+		Obsrv Connectors
 	</description>
 	<url>https://sunbird.org/</url>
 
 	<modules>
- 		<module>pipeline</module>
+ 		<module>kafka-connector</module>
  	</modules>
 
 	<properties>
