@@ -10,7 +10,7 @@
         <version>1.0</version>
     </parent>
 
-    <groupId>org.sunbird.obsrv.pipeline</groupId>
+    <groupId>org.sunbird.obsrv.connectors</groupId>
     <artifactId>kafka-connector</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
