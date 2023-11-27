@@ -1,6 +1,6 @@
 package org.sunbird.obsrv.util
 
-import org.sunbird.obsrv.core.model.SystemConfig
+
 import org.sunbird.obsrv.job.JDBCConnectorConfig
 
 import java.util.Base64

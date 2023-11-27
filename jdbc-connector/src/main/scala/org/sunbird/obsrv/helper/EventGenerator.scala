@@ -1,37 +1,14 @@
 package org.sunbird.obsrv.helper
 
 import org.sunbird.obsrv.job.JDBCConnectorConfig
-import org.sunbird.obsrv.model.DatasetModels.DatasetSourceConfig
-import org.sunbird.obsrv.util.JSONUtil
+import org.sunbird.obsrv.model.DatasetModels.{Dataset, DatasetSourceConfig}
+import org.sunbird.obsrv.model.{Edata, MetricLabel}
 
 import java.util.UUID
 import scala.collection.mutable
 
-case class SingleEvent(dataset: String, event: Map[String, Any], syncts: Long, obsrv_meta: mutable.Map[String,Any])
 
 object EventGenerator {
-
-  def getBatchEvent(datasetId: String, record: String, dsSourceConfig: DatasetSourceConfig, config: JDBCConnectorConfig, extractionKey: String): String = {
-    val event = Map(
-      "id" -> UUID.randomUUID().toString,
-      "dataset" -> datasetId,
-      extractionKey -> List(JSONUtil.deserialize(record, classOf[Map[String, Any]])),
-      "syncts" -> System.currentTimeMillis(),
-      "obsrv_meta" -> getObsrvMeta(dsSourceConfig, config)
-    )
-    JSONUtil.serialize(event)
-  }
-
-
-  def getSingleEvent(datasetId: String, record: String, dsSourceConfig: DatasetSourceConfig, config: JDBCConnectorConfig): String = {
-    val event = SingleEvent(
-      datasetId,
-      JSONUtil.deserialize(record, classOf[Map[String, Any]]),
-      System.currentTimeMillis(),
-      getObsrvMeta(dsSourceConfig, config)
-    )
-    JSONUtil.serialize(event)
-  }
 
   def getObsrvMeta(dsSourceConfig: DatasetSourceConfig, config: JDBCConnectorConfig): mutable.Map[String,Any] = {
     val obsrvMeta = mutable.Map[String,Any]()
@@ -50,6 +27,77 @@ object EventGenerator {
       "trace_id" -> UUID.randomUUID().toString
     ))
     obsrvMeta
+  }
+
+
+  def generateProcessingMetric(config: JDBCConnectorConfig, dataset: Dataset, batch: Int, eventCount: Long, dsSourceConfig: DatasetSourceConfig, metrics: MetricsHelper, eventProcessingTime: Long): Unit = {
+    metrics.generate(
+      dataset.id,
+      dataset.dataVersion.getOrElse(1),
+      edata = Edata(
+        metric = Map(
+          metrics.getMetricName("batch_count") -> batch,
+          metrics.getMetricName("processed_event_count") -> eventCount,
+          metrics.getMetricName("processing_time_in_ms") -> eventProcessingTime
+        ),
+        labels = getMetricLabels(config, dsSourceConfig)
+      )
+    )
+  }
+
+  private def getMetricLabels(config: JDBCConnectorConfig, dsSourceConfig: DatasetSourceConfig) = {
+    List(
+      MetricLabel("job", config.jobName),
+      MetricLabel("databaseType", dsSourceConfig.connectorConfig.databaseType),
+      MetricLabel("databaseName", dsSourceConfig.connectorConfig.databaseName),
+      MetricLabel("tableName", dsSourceConfig.connectorConfig.tableName),
+      MetricLabel("batchSize", String.valueOf(dsSourceConfig.connectorConfig.batchSize)),
+      MetricLabel("metricsVersion", config.metricsVersion)
+    )
+  }
+
+  def generateFetchMetric(config: JDBCConnectorConfig, dataset: Dataset, batch: Int, eventCount: Long, dsSourceConfig: DatasetSourceConfig, metrics: MetricsHelper, eventProcessingTime: Long): Unit = {
+    metrics.generate(
+      dataset.id,
+      dataset.dataVersion.getOrElse(1),
+      edata = Edata(
+        metric = Map(
+          metrics.getMetricName("batch_count") -> batch,
+          metrics.getMetricName("fetched_event_count") -> eventCount,
+          metrics.getMetricName("fetched_time_in_ms") -> eventProcessingTime
+        ),
+        labels = getMetricLabels(config, dsSourceConfig)
+      )
+    )
+  }
+
+  def generateErrorMetric(config: JDBCConnectorConfig, dsSourceConfig: DatasetSourceConfig, metrics: MetricsHelper, failureCount: Int, batch: Int, error: String, errorMessage: String, dsVersion: Option[Int]): Unit = {
+    metrics.generate(
+      dsSourceConfig.datasetId,
+      dsVersion.getOrElse(1),
+      edata = Edata(
+        metric = Map(
+          metrics.getMetricName("batch_count") -> batch,
+          metrics.getMetricName("failure_count") -> failureCount
+        ),
+        labels = getMetricLabels(config, dsSourceConfig),
+        err = error,
+        errMsg = errorMessage
+      )
+    )
+  }
+
+  def generateErrorMetric(config: JDBCConnectorConfig, dsSourceConfig: DatasetSourceConfig, metrics: MetricsHelper, error: String, errorMessage: String, dsVersion: Option[Int]): Unit = {
+    metrics.generate(
+      dsSourceConfig.datasetId,
+      dsVersion.getOrElse(1),
+      edata = Edata(
+        metric = Map(),
+        labels = getMetricLabels(config, dsSourceConfig),
+        err = error,
+        errMsg = errorMessage
+      )
+    )
   }
 
 }

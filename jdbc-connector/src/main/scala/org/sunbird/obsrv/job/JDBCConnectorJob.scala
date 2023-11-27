@@ -3,7 +3,7 @@ package org.sunbird.obsrv.job
 import com.typesafe.config.ConfigFactory
 import org.apache.logging.log4j.{LogManager, Logger}
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.sunbird.obsrv.helper.ConnectorHelper
+import org.sunbird.obsrv.helper.{ConnectorHelper, EventGenerator, MetricsHelper}
 import org.sunbird.obsrv.model.DatasetModels
 import org.sunbird.obsrv.registry.DatasetRegistry
 
@@ -17,6 +17,7 @@ object JDBCConnectorJob extends Serializable {
     val appConfig = ConfigFactory.load("jdbc-connector.conf").withFallback(ConfigFactory.systemEnvironment())
     val config = new JDBCConnectorConfig(appConfig, args)
     val helper = new ConnectorHelper(config)
+    val metrics = MetricsHelper(config)
     val dsSourceConfigList =  DatasetRegistry.getDatasetSourceConfig()
     val datasetList = DatasetRegistry.getAllDatasets()
 
@@ -30,34 +31,38 @@ object JDBCConnectorJob extends Serializable {
 
     filteredDSSourceConfigList.map {
         dataSourceConfig =>
-          processTask(config, helper, spark, dataSourceConfig)
+          processTask(config, helper, spark, dataSourceConfig, metrics)
     }
 
     spark.stop()
   }
 
-  private def processTask(config: JDBCConnectorConfig, helper: ConnectorHelper, spark: SparkSession, dataSourceConfig: DatasetModels.DatasetSourceConfig) = {
-    logger.info(s"Started processing dataset: ${dataSourceConfig.datasetId}")
-    val dataset = DatasetRegistry.getDataset(dataSourceConfig.datasetId).get
-    var batch: Int = 0
-    var eventCount: Long = 0
-    breakable {
-      while (true) {
-        val (data: DataFrame, batchReadTime: Long) = helper.pullRecords(spark, dataSourceConfig, dataset, batch)
-        batch += 1
 
-        if (data.count == 0 || validateMaxSize(eventCount, config.eventMaxLimit)) {
-          DatasetRegistry.updateConnectorAvgBatchReadTime(dataSourceConfig.datasetId, batchReadTime / batch)
-          logger.info("Updating the metrics to the database...")
-          break
-        } else {
-          helper.processRecords(config, dataset, batch, data, batchReadTime, dataSourceConfig)
-          eventCount += data.count()
+  private def processTask(config: JDBCConnectorConfig, helper: ConnectorHelper, spark: SparkSession, dataSourceConfig: DatasetModels.DatasetSourceConfig, metrics: MetricsHelper) = {
+    val dataset = DatasetRegistry.getDataset(dataSourceConfig.datasetId).get
+    try {
+      logger.info(s"Started processing dataset: ${dataSourceConfig.datasetId}")
+      var batch: Int = 0
+      var eventCount: Long = 0
+      breakable {
+        while (true) {
+          val data: DataFrame = helper.pullRecords(spark, dataSourceConfig, dataset, batch, metrics)
+          batch += 1
+          if (data.count == 0 || validateMaxSize(eventCount, config.eventMaxLimit)) {
+            break
+          } else {
+            helper.processRecords(config, dataset, batch, data, dataSourceConfig, metrics)
+            eventCount += data.count()
+          }
         }
       }
+      logger.info(s"Completed processing dataset: ${dataSourceConfig.datasetId} :: Total number of records are pulled: $eventCount")
+      dataSourceConfig
+    } catch {
+      case ex: Exception =>
+        ex.printStackTrace()
+        EventGenerator.generateErrorMetric(config, dataSourceConfig, metrics, "Error while processing the JDBC Connector Job", ex.getMessage, dataset.dataVersion)
     }
-    logger.info(s"Completed processing dataset: ${dataSourceConfig.datasetId} :: Total number of records are pulled: $eventCount")
-    dataSourceConfig
   }
 
   private def getActiveDataSetsSourceConfig(dsSourceConfigList: Option[List[DatasetModels.DatasetSourceConfig]], datasetList: Map[String, DatasetModels.Dataset]) = {

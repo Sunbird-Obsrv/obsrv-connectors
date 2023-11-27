@@ -1,6 +1,9 @@
 package org.sunbird.obsrv.helper
 
+import org.apache.kafka.common.KafkaException
 import org.apache.logging.log4j.{LogManager, Logger}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.sunbird.obsrv.job.JDBCConnectorConfig
 import org.sunbird.obsrv.model.DatasetModels
@@ -8,17 +11,15 @@ import org.sunbird.obsrv.model.DatasetModels.{ConnectorConfig, ConnectorStats, D
 import org.sunbird.obsrv.registry.DatasetRegistry
 import org.sunbird.obsrv.util.{CipherUtil, JSONUtil}
 
+import java.net.UnknownHostException
 import java.sql.Timestamp
-import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types._
 import scala.util.control.Breaks.break
-import scala.util.{Failure, Try}
 
 class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
 
  private final val logger: Logger = LogManager.getLogger(getClass)
 
-  def pullRecords(spark: SparkSession, dsSourceConfig: DatasetSourceConfig, dataset: Dataset, batch: Int): (DataFrame, Long) = {
+  def pullRecords(spark: SparkSession, dsSourceConfig: DatasetSourceConfig, dataset: Dataset, batch: Int, metrics: MetricsHelper): DataFrame = {
     val cipherUtil = new CipherUtil(config)
     val connectorConfig = dsSourceConfig.connectorConfig
     val connectorStats = dsSourceConfig.connectorStats
@@ -32,10 +33,9 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
     logger.info(s"Started pulling batch ${batch + 1}")
 
     while (retryCount < config.jdbcConnectionRetry && data == null) {
-      val connectionResult = Try {
+      try {
         val readStartTime = System.currentTimeMillis()
         val authenticationData: Map[String, String] =  JSONUtil.deserialize(cipherUtil.decrypt(connectorConfig.authenticationMechanism.encryptedValues), classOf[Map[String, String]])
-
         val result =  spark.read.format("jdbc")
             .option("driver", getDriver(connectorConfig.databaseType))
             .option("url", jdbcUrl)
@@ -44,62 +44,95 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
             .option("query", query)
             .load()
 
-        batchReadTime += System.currentTimeMillis() - readStartTime
-        result
-      }
-
-      connectionResult match {
-        case Failure(exception) =>
-          logger.error(s"Database Connection failed. Retrying (${retryCount + 1}/${config.jdbcConnectionRetry})...", exception)
+        batchReadTime = System.currentTimeMillis() - readStartTime
+        EventGenerator.generateFetchMetric(config, dataset, batch + 1, result.count(), dsSourceConfig, metrics, batchReadTime)
+        data = result
+      } catch {
+        case exception: Exception =>
           retryCount += 1
-          DatasetRegistry.updateConnectorDisconnections(dsSourceConfig.datasetId, retryCount)
-          if (retryCount == config.jdbcConnectionRetry) break
-          Thread.sleep(config.jdbcConnectionRetryDelay)
-        case util.Success(df) =>
-          data = df
+          exceptionHandler(dsSourceConfig, retryCount, exception, metrics, batch + 1, dataset.dataVersion)
       }
     }
-    (data, batchReadTime)
+    data
   }
 
-  def processRecords(config: JDBCConnectorConfig, dataset: DatasetModels.Dataset, batch: Int, data: DataFrame, batchReadTime: Long, dsSourceConfig: DatasetSourceConfig): Unit = {
+  private def exceptionHandler(dsSourceConfig: DatasetSourceConfig, retryCount: Int, ex: Throwable, metrics: MetricsHelper, batch: Int, dsVersion: Option[Int]): Unit = {
+    val error = getExceptionMessage(ex)
+    logger.error(s"$error :: Retrying (${retryCount}/${config.jdbcConnectionRetry}) :: Exception: ${ex.getMessage}")
+    ex.printStackTrace()
+    DatasetRegistry.updateConnectorDisconnections(dsSourceConfig.datasetId, retryCount)
+    EventGenerator.generateErrorMetric(config, dsSourceConfig, metrics, retryCount, batch, error, ex.getMessage, dsVersion)
+    if (retryCount == config.jdbcConnectionRetry) break
+    Thread.sleep(config.jdbcConnectionRetryDelay)
+  }
+
+  private def getExceptionMessage(exception: Throwable): String = {
+    exception.getMessage match {
+      case msg if msg.contains("authentication failed") => "Invalid authentication details"
+      case _ =>
+        exception.getClass.toString match {
+          case cls if cls.contains("javax.crypto") => "Error while decrypting the authentication details"
+          case _ =>
+            exception match {
+              case _: UnknownHostException => "Database Connection failed"
+              case _: Exception => "Error while fetching data from database"
+            }
+        }
+    }
+  }
+
+  def processRecords(config: JDBCConnectorConfig, dataset: DatasetModels.Dataset, batch: Int, data: DataFrame, dsSourceConfig: DatasetSourceConfig, metrics: MetricsHelper): Unit = {
+    val processStartTime = System.currentTimeMillis()
     val lastRowTimestamp = data.orderBy(data(dataset.datasetConfig.tsKey).desc).first().getAs[Timestamp](dataset.datasetConfig.tsKey)
+    val eventCount = data.count()
     pushToKafka(config, dataset, dsSourceConfig, data)
+    val eventProcessingTime = System.currentTimeMillis() - processStartTime
     DatasetRegistry.updateConnectorStats(dsSourceConfig.datasetId, lastRowTimestamp, data.count())
-    logger.info(s"Batch $batch is processed successfully :: Number of records pulled: ${data.count()} :: Avg Batch Read Time: ${batchReadTime/batch}")
+    EventGenerator.generateProcessingMetric(config, dataset, batch, eventCount, dsSourceConfig, metrics, eventProcessingTime)
+    logger.info(s"Batch $batch is processed successfully :: Number of records pulled: $eventCount")
   }
 
   private def pushToKafka(config: JDBCConnectorConfig, dataset: DatasetModels.Dataset, dsSourceConfig: DatasetSourceConfig, df: DataFrame): Unit = {
-    val transformedDF: DataFrame = transformDF(df, dsSourceConfig, dataset)
-    transformedDF
-      .selectExpr("to_json(struct(*)) AS value")
-      .write
-      .format("kafka")
-      .option("kafka.bootstrap.servers", config.kafkaServerUrl)
-      .option("topic", dataset.datasetConfig.entryTopic)
-      .save()
+    try {
+      val transformedDF: DataFrame = transformDF(df, dsSourceConfig, dataset)
+      transformedDF
+        .selectExpr("to_json(struct(*)) AS value")
+        .write
+        .format("kafka")
+        .option("kafka.bootstrap.servers", config.kafkaServerUrl)
+        .option("topic", dataset.datasetConfig.entryTopic)
+        .save()
+    } catch {
+      case ex: KafkaException =>
+        throw new Exception(s"Error while sending data to kafka: ${ex.getMessage}")
+    }
   }
 
   private def transformDF(df: DataFrame, dsSourceConfig: DatasetSourceConfig, dataset: DatasetModels.Dataset): DataFrame = {
-    val fieldNames = df.columns
-    val structExpr = struct(fieldNames.map(col): _*)
-    val getObsrvMeta = udf(() => JSONUtil.serialize(EventGenerator.getObsrvMeta(dsSourceConfig, config)))
-    var resultDF: DataFrame = null
+    try {
+      val fieldNames = df.columns
+      val structExpr = struct(fieldNames.map(col): _*)
+      val getObsrvMeta = udf(() => JSONUtil.serialize(EventGenerator.getObsrvMeta(dsSourceConfig, config)))
+      var resultDF: DataFrame = null
 
-    if (dataset.extractionConfig.get.isBatchEvent.get) {
-      resultDF = df.withColumn(dataset.extractionConfig.get.extractionKey.get, expr(s"transform(array($structExpr), x -> map(${df.columns.map(c => s"'$c', x.$c").mkString(", ")}))"))
-    } else {
-      resultDF = df.withColumn("event", structExpr)
+      if (dataset.extractionConfig.get.isBatchEvent.get) {
+        resultDF = df.withColumn(dataset.extractionConfig.get.extractionKey.get, expr(s"transform(array($structExpr), x -> map(${df.columns.map(c => s"'$c', x.$c").mkString(", ")}))"))
+      } else {
+        resultDF = df.withColumn("event", structExpr)
+      }
+
+      resultDF = resultDF
+        .withColumn("dataset", lit(dsSourceConfig.datasetId))
+        .withColumn("syncts", expr("cast(current_timestamp() as long)"))
+        .withColumn("obsrv_meta_str", getObsrvMeta())
+        .withColumn("obsrv_meta", from_json(col("obsrv_meta_str"), getObsrvMetaSchema))
+
+      val columnsToRemove = fieldNames.toSeq :+ "obsrv_meta_str"
+      resultDF.drop(columnsToRemove: _*)
+    } catch {
+      case ex: Exception =>
+        throw new Exception(s"Error while transforming the data: ${ex.getMessage}")
     }
-
-    resultDF = resultDF
-      .withColumn("dataset", lit(dsSourceConfig.datasetId))
-      .withColumn("syncts", expr("cast(current_timestamp() as long)"))
-      .withColumn("obsrv_meta_str", getObsrvMeta())
-      .withColumn("obsrv_meta", from_json(col("obsrv_meta_str"), getObsrvMetaSchema))
-
-    val columnsToRemove = fieldNames.toSeq :+ "obsrv_meta_str"
-    resultDF.drop(columnsToRemove: _*)
   }
 
   private def getQuery(connectorStats: ConnectorStats, connectorConfig: ConnectorConfig, dataset: Dataset, offset: Int): String = {
