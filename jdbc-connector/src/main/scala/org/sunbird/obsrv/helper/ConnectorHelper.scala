@@ -5,11 +5,11 @@ import org.apache.logging.log4j.{LogManager, Logger}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.sunbird.obsrv.job.JDBCConnectorConfig
 import org.sunbird.obsrv.model.DatasetModels
 import org.sunbird.obsrv.model.DatasetModels.{ConnectorConfig, ConnectorStats, Dataset, DatasetSourceConfig}
 import org.sunbird.obsrv.registry.DatasetRegistry
 import org.sunbird.obsrv.util.{CipherUtil, JSONUtil}
+import org.sunbird.obsrv.job.JDBCConnectorConfig
 
 import java.net.UnknownHostException
 import java.sql.Timestamp

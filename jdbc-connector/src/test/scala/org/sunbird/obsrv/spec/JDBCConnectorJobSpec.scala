@@ -1,6 +1,6 @@
-package org.sunbird.obsrv.fixture
+package org.sunbird.obsrv.spec
 
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import io.github.embeddedkafka.Codecs.stringDeserializer
 import io.github.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig, duration2JavaDuration}
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres
@@ -9,6 +9,7 @@ import org.apache.kafka.common.TopicPartition
 import org.scalatest.Matchers._
 import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 import org.sunbird.obsrv.core.util.{PostgresConnect, PostgresConnectionConfig}
+import org.sunbird.obsrv.fixture.EventFixture
 import org.sunbird.obsrv.job.{JDBCConnectorConfig, JDBCConnectorJob}
 import org.sunbird.obsrv.registry.DatasetRegistry
 import org.sunbird.obsrv.util.{CipherUtil, JSONUtil}
@@ -23,8 +24,8 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration._
 
 
-class JDBCConnectorJob extends FlatSpec with EmbeddedKafka with BeforeAndAfterAll {
-  val config = ConfigFactory.load("test.conf").withFallback(ConfigFactory.systemEnvironment())
+class JDBCConnectorJobSpec extends FlatSpec with EmbeddedKafka with BeforeAndAfterAll {
+  val config: Config = ConfigFactory.load("test.conf").withFallback(ConfigFactory.systemEnvironment())
 
   val customKafkaConsumerProperties: Map[String, String] = Map("group.id" -> "test-consumer-group", "auto.offset.reset" -> "earliest")
   var embeddedPostgres: EmbeddedPostgres = _

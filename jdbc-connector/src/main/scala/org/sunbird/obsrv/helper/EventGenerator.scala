@@ -1,8 +1,8 @@
 package org.sunbird.obsrv.helper
 
-import org.sunbird.obsrv.job.JDBCConnectorConfig
 import org.sunbird.obsrv.model.DatasetModels.{Dataset, DatasetSourceConfig}
 import org.sunbird.obsrv.model.{Edata, MetricLabel}
+import org.sunbird.obsrv.job.JDBCConnectorConfig
 
 import java.util.UUID
 import scala.collection.mutable

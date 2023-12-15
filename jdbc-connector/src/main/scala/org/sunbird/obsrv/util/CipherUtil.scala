@@ -1,11 +1,10 @@
 package org.sunbird.obsrv.util
 
 
-import org.sunbird.obsrv.job.JDBCConnectorConfig
-
 import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
+import org.sunbird.obsrv.job.JDBCConnectorConfig
 
 class CipherUtil(config: JDBCConnectorConfig) {
 

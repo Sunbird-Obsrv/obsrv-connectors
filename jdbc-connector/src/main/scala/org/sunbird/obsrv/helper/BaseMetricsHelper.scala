@@ -1,8 +1,8 @@
 package org.sunbird.obsrv.helper
 
 import org.sunbird.obsrv.core.util.JSONUtil
-import org.sunbird.obsrv.job.JDBCConnectorConfig
 import org.sunbird.obsrv.model.{IJobMetric, IMetricsHelper}
+import org.sunbird.obsrv.job.JDBCConnectorConfig
 
 abstract class BaseMetricHelper(config: JDBCConnectorConfig) extends IMetricsHelper {
 
