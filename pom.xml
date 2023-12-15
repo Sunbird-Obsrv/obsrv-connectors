@@ -21,6 +21,7 @@
 
 	<modules>
  		<module>kafka-connector</module>
+		<module>jdbc-connector</module>
  	</modules>
 
 	<properties>
