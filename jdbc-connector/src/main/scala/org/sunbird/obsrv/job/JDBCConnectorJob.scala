@@ -4,7 +4,7 @@ import com.typesafe.config.ConfigFactory
 import org.apache.logging.log4j.{LogManager, Logger}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.sunbird.obsrv.helper.{ConnectorHelper, EventGenerator, MetricsHelper}
-import org.sunbird.obsrv.model.DatasetModels
+import org.sunbird.obsrv.model.{DatasetModels, DatasetStatus}
 import org.sunbird.obsrv.registry.DatasetRegistry
 
 import scala.util.control.Breaks.{break, breakable}
@@ -18,7 +18,7 @@ object JDBCConnectorJob extends Serializable {
     val config = new JDBCConnectorConfig(appConfig, args)
     val helper = new ConnectorHelper(config)
     val metrics = MetricsHelper(config)
-    val dsSourceConfigList =  DatasetRegistry.getDatasetSourceConfig()
+    val dsSourceConfigList = DatasetRegistry.getAllDatasetSourceConfig()
     val datasetList = DatasetRegistry.getAllDatasets()
 
      val spark = SparkSession.builder()
@@ -65,11 +65,11 @@ object JDBCConnectorJob extends Serializable {
     }
   }
 
-  private def getActiveDataSetsSourceConfig(dsSourceConfigList: Option[List[DatasetModels.DatasetSourceConfig]], datasetList: Map[String, DatasetModels.Dataset]) = {
-    val activeDatasets = datasetList.filter(dataset => dataset._2.status.equalsIgnoreCase("active"))
+    private def getActiveDataSetsSourceConfig(dsSourceConfigList: Option[List[DatasetModels.DatasetSourceConfig]], datasetList: Map[String, DatasetModels.Dataset]) = {
+    val liveDatasets = datasetList.filter(dataset => dataset._2.status.equals(DatasetStatus.Live))
     val filteredDSSourceConfigList = dsSourceConfigList.map { configList =>
       configList.filter(config => config.connectorType.equalsIgnoreCase("jdbc") &&
-        config.status.equalsIgnoreCase("active") && activeDatasets.contains(config.datasetId))
+        config.status.equalsIgnoreCase("Live") && liveDatasets.contains(config.datasetId))
     }.get
     filteredDSSourceConfigList
   }

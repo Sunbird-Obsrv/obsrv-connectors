@@ -87,7 +87,7 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
     val eventCount = data.count()
     pushToKafka(config, dataset, dsSourceConfig, data)
     val eventProcessingTime = System.currentTimeMillis() - processStartTime
-    DatasetRegistry.updateConnectorStats(dsSourceConfig.datasetId, lastRowTimestamp, data.count())
+    DatasetRegistry.updateConnectorStats(dsSourceConfig.id, lastRowTimestamp, data.count())
     EventGenerator.generateProcessingMetric(config, dataset, batch, eventCount, dsSourceConfig, metrics, eventProcessingTime)
     logger.info(s"Batch $batch is processed successfully :: Number of records pulled: $eventCount")
   }
@@ -113,12 +113,21 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
       val fieldNames = df.columns
       val structExpr = struct(fieldNames.map(col): _*)
       val getObsrvMeta = udf(() => JSONUtil.serialize(EventGenerator.getObsrvMeta(dsSourceConfig, config)))
+      val generateUUID = udf(() => java.util.UUID.randomUUID().toString)
       var resultDF: DataFrame = null
 
+      val jsonColumn = df.toJSON
+      val value = jsonColumn.select("value")
+
       if (dataset.extractionConfig.get.isBatchEvent.get) {
-        resultDF = df.withColumn(dataset.extractionConfig.get.extractionKey.get, expr(s"transform(array($structExpr), x -> map(${df.columns.map(c => s"'$c', x.$c").mkString(", ")}))"))
+        val updatedValue = value.withColumnRenamed("value", dataset.extractionConfig.get.extractionKey.get)
+        resultDF = updatedValue
+          .withColumn(dataset.extractionConfig.get.extractionKey.get, array(from_json(col(dataset.extractionConfig.get.extractionKey.get), df.schema)))
+          .withColumn(dataset.extractionConfig.get.dedupConfig.get.dedupKey.get, generateUUID())
       } else {
-        resultDF = df.withColumn("event", structExpr)
+        resultDF = df
+          .withColumn("event", structExpr)
+          .withColumn("id", generateUUID())
       }
 
       resultDF = resultDF
@@ -135,11 +144,19 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
     }
   }
 
-  private def getQuery(connectorStats: ConnectorStats, connectorConfig: ConnectorConfig, dataset: Dataset, offset: Int): String = {
-    if (connectorStats.lastFetchTimestamp == null) {
-      s"SELECT * FROM ${connectorConfig.tableName} ORDER BY ${dataset.datasetConfig.tsKey} LIMIT ${connectorConfig.batchSize} OFFSET $offset"
-    } else {
-      s"SELECT * FROM ${connectorConfig.tableName} WHERE ${dataset.datasetConfig.tsKey} >= '${connectorStats.lastFetchTimestamp}' ORDER BY ${connectorConfig.timestampColumn} LIMIT ${connectorConfig.batchSize} OFFSET $offset"
+  private def getQuery(connectorStats: Option[ConnectorStats], connectorConfig: ConnectorConfig, dataset: Dataset, offset: Int): String = {
+    connectorStats.map(_.lastFetchTimestamp) match {
+      case Some(lastFetchTimestamp) => {
+        var fetchQuery = ""
+        if (lastFetchTimestamp == null) {
+          fetchQuery = s"SELECT * FROM ${connectorConfig.tableName} ORDER BY ${dataset.datasetConfig.tsKey} LIMIT ${connectorConfig.batchSize} OFFSET $offset"
+        } else {
+         fetchQuery = s"SELECT * FROM ${connectorConfig.tableName} WHERE ${dataset.datasetConfig.tsKey} >= '$lastFetchTimestamp' ORDER BY ${connectorConfig.timestampColumn} LIMIT ${connectorConfig.batchSize} OFFSET $offset"
+        }
+        fetchQuery
+      }
+      case None =>
+        s"SELECT * FROM ${connectorConfig.tableName} ORDER BY ${dataset.datasetConfig.tsKey} LIMIT ${connectorConfig.batchSize} OFFSET $offset"
     }
   }
 

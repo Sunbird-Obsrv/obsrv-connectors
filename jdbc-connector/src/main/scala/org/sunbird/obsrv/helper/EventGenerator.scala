@@ -52,7 +52,9 @@ object EventGenerator {
       MetricLabel("databaseName", dsSourceConfig.connectorConfig.databaseName),
       MetricLabel("tableName", dsSourceConfig.connectorConfig.tableName),
       MetricLabel("batchSize", String.valueOf(dsSourceConfig.connectorConfig.batchSize)),
-      MetricLabel("metricsVersion", config.metricsVersion)
+      MetricLabel("metricsVersion", config.metricsVersion),
+      MetricLabel("connectorVersion", config.connectorVersion),
+      MetricLabel("datasetId", dsSourceConfig.datasetId),
     )
   }
 
