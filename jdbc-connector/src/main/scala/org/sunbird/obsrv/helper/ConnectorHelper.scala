@@ -83,7 +83,7 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
 
   def processRecords(config: JDBCConnectorConfig, dataset: DatasetModels.Dataset, batch: Int, data: DataFrame, dsSourceConfig: DatasetSourceConfig, metrics: MetricsHelper): Unit = {
     val processStartTime = System.currentTimeMillis()
-    val lastRowTimestamp = data.orderBy(data(dataset.datasetConfig.tsKey).desc).first().getAs[Timestamp](dataset.datasetConfig.tsKey)
+    val lastRowTimestamp = data.orderBy(data(dsSourceConfig.connectorConfig.timestampColumn).desc).first().getAs[Timestamp](dsSourceConfig.connectorConfig.timestampColumn)
     val eventCount = data.count()
     pushToKafka(config, dataset, dsSourceConfig, data)
     val eventProcessingTime = System.currentTimeMillis() - processStartTime
@@ -137,9 +137,9 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
 
   private def getQuery(connectorStats: ConnectorStats, connectorConfig: ConnectorConfig, dataset: Dataset, offset: Int): String = {
     if (connectorStats.lastFetchTimestamp == null) {
-      s"SELECT * FROM ${connectorConfig.tableName} ORDER BY ${dataset.datasetConfig.tsKey} LIMIT ${connectorConfig.batchSize} OFFSET $offset"
+      s"SELECT * FROM ${connectorConfig.tableName} ORDER BY ${connectorConfig.timestampColumn} LIMIT ${connectorConfig.batchSize} OFFSET $offset"
     } else {
-      s"SELECT * FROM ${connectorConfig.tableName} WHERE ${dataset.datasetConfig.tsKey} >= '${connectorStats.lastFetchTimestamp}' ORDER BY ${connectorConfig.timestampColumn} LIMIT ${connectorConfig.batchSize} OFFSET $offset"
+      s"SELECT * FROM ${connectorConfig.tableName} WHERE ${connectorConfig.timestampColumn} >= '${connectorStats.lastFetchTimestamp}' ORDER BY ${connectorConfig.timestampColumn} LIMIT ${connectorConfig.batchSize} OFFSET $offset"
     }
   }
 
