@@ -14,7 +14,7 @@ object JDBCConnectorJob extends Serializable {
 
   private final val logger: Logger = LogManager.getLogger(JDBCConnectorJob.getClass)
 
-  private var datasetList: List[Dataset] = List[Dataset];
+  private var datasetList: List[Dataset] = List[Dataset]()
 
   def main(args: Array[String]): Unit = {
     val appConfig = ConfigFactory.load("jdbc-connector.conf").withFallback(ConfigFactory.systemEnvironment())
