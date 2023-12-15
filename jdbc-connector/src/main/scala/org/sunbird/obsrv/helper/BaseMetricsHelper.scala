@@ -15,7 +15,7 @@ abstract class BaseMetricHelper(config: JDBCConnectorConfig) extends IMetricsHel
     "processing_time_in_ms" -> "processing_time_in_ms"
   )
 
-  val metricsProducer = KafkaMessageProducer(config)
+  val metricsProducer: KafkaMessageProducer = KafkaMessageProducer(config)
 
   def sync(metric: IJobMetric): Unit = {
     val metricStr = JSONUtil.serialize(metric)

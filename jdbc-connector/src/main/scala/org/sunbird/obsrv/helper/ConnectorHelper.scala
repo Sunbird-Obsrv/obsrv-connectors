@@ -83,7 +83,7 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
     }
   }
 
-  def processRecords(config: JDBCConnectorConfig, dataset: DatasetModels.Dataset, batch: Int, data: DataFrame, dsSourceConfig: DatasetSourceConfig, metrics: MetricsHelper): Unit = {
+  def processRecords(config: JDBCConnectorConfig, dataset: DatasetModels.Dataset, batch: Int, data: DataFrame, eventCount: Long, dsSourceConfig: DatasetSourceConfig, metrics: MetricsHelper): Unit = {
     val processStartTime = System.currentTimeMillis()
     val lastRowTimestamp = data.orderBy(data(dsSourceConfig.connectorConfig.timestampColumn).desc).first().getAs[Timestamp](dsSourceConfig.connectorConfig.timestampColumn)
     val eventCount = data.count()
