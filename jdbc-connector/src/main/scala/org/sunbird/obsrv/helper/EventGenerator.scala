@@ -1,8 +1,8 @@
 package org.sunbird.obsrv.helper
 
-import org.sunbird.obsrv.job.JDBCConnectorConfig
 import org.sunbird.obsrv.model.DatasetModels.{Dataset, DatasetSourceConfig}
 import org.sunbird.obsrv.model.{Edata, MetricLabel}
+import org.sunbird.obsrv.job.JDBCConnectorConfig
 
 import java.util.UUID
 import scala.collection.mutable
@@ -52,7 +52,9 @@ object EventGenerator {
       MetricLabel("databaseName", dsSourceConfig.connectorConfig.databaseName),
       MetricLabel("tableName", dsSourceConfig.connectorConfig.tableName),
       MetricLabel("batchSize", String.valueOf(dsSourceConfig.connectorConfig.batchSize)),
-      MetricLabel("metricsVersion", config.metricsVersion)
+      MetricLabel("metricsVersion", config.metricsVersion),
+      MetricLabel("connectorVersion", config.connectorVersion),
+      MetricLabel("datasetId", dsSourceConfig.datasetId),
     )
   }
 

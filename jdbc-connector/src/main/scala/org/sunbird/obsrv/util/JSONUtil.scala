@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include
 import com.fasterxml.jackson.core.JsonGenerator.Feature
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.{DeserializationFeature, SerializationFeature}
-import com.fasterxml.jackson.module.scala.{ClassTagExtensions, DefaultScalaModule}
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
 
 object JSONUtil {
 
@@ -13,7 +13,7 @@ object JSONUtil {
     .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
     .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
     .enable(Feature.WRITE_BIGDECIMAL_AS_PLAIN)
-    .build() :: ClassTagExtensions
+    .build()
 
   mapper.setSerializationInclusion(Include.NON_NULL)
 

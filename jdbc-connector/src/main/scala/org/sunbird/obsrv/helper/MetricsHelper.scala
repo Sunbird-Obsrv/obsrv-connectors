@@ -1,7 +1,7 @@
 package org.sunbird.obsrv.helper
 
-import org.sunbird.obsrv.job.JDBCConnectorConfig
 import org.sunbird.obsrv.model.{Actor, Context, Edata, JobMetric, MetricObject, Pdata}
+import org.sunbird.obsrv.job.JDBCConnectorConfig
 
 case class MetricsHelper(config: JDBCConnectorConfig) extends BaseMetricHelper(config) {
 
