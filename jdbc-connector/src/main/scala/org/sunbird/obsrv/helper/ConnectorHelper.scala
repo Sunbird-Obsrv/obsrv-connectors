@@ -5,11 +5,11 @@ import org.apache.logging.log4j.{LogManager, Logger}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.sunbird.obsrv.job.JDBCConnectorConfig
 import org.sunbird.obsrv.model.DatasetModels
 import org.sunbird.obsrv.model.DatasetModels.{ConnectorConfig, ConnectorStats, Dataset, DatasetSourceConfig}
 import org.sunbird.obsrv.registry.DatasetRegistry
 import org.sunbird.obsrv.util.{CipherUtil, JSONUtil}
+import org.sunbird.obsrv.job.JDBCConnectorConfig
 
 import java.net.UnknownHostException
 import java.sql.Timestamp
@@ -22,7 +22,9 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
   def pullRecords(spark: SparkSession, dsSourceConfig: DatasetSourceConfig, dataset: Dataset, batch: Int, metrics: MetricsHelper): DataFrame = {
     val cipherUtil = new CipherUtil(config)
     val connectorConfig = dsSourceConfig.connectorConfig
-    val connectorStats = dsSourceConfig.connectorStats
+    val connectorStats = dsSourceConfig.connectorStats.getOrElse(
+      ConnectorStats(records = 0, lastFetchTimestamp = null, disconnections = 0, avgBatchReadTime = 0)
+    )
     val jdbcUrl = s"jdbc:${connectorConfig.databaseType}://${connectorConfig.connection.host}:${connectorConfig.connection.port}/${connectorConfig.databaseName}"
     val offset = batch * connectorConfig.batchSize
     val query: String = getQuery(connectorStats, connectorConfig, dataset, offset)
@@ -81,13 +83,13 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
     }
   }
 
-  def processRecords(config: JDBCConnectorConfig, dataset: DatasetModels.Dataset, batch: Int, data: DataFrame, dsSourceConfig: DatasetSourceConfig, metrics: MetricsHelper): Unit = {
+  def processRecords(config: JDBCConnectorConfig, dataset: DatasetModels.Dataset, batch: Int, data: DataFrame, eventCount: Long, dsSourceConfig: DatasetSourceConfig, metrics: MetricsHelper): Unit = {
     val processStartTime = System.currentTimeMillis()
     val lastRowTimestamp = data.orderBy(data(dsSourceConfig.connectorConfig.timestampColumn).desc).first().getAs[Timestamp](dsSourceConfig.connectorConfig.timestampColumn)
-    val eventCount = data.count()
+    val eventCount = eventCount
     pushToKafka(config, dataset, dsSourceConfig, data)
     val eventProcessingTime = System.currentTimeMillis() - processStartTime
-    DatasetRegistry.updateConnectorStats(dsSourceConfig.datasetId, lastRowTimestamp, data.count())
+    DatasetRegistry.updateConnectorStats(dsSourceConfig.datasetId, lastRowTimestamp, eventCount)
     EventGenerator.generateProcessingMetric(config, dataset, batch, eventCount, dsSourceConfig, metrics, eventProcessingTime)
     logger.info(s"Batch $batch is processed successfully :: Number of records pulled: $eventCount")
   }
@@ -113,12 +115,21 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
       val fieldNames = df.columns
       val structExpr = struct(fieldNames.map(col): _*)
       val getObsrvMeta = udf(() => JSONUtil.serialize(EventGenerator.getObsrvMeta(dsSourceConfig, config)))
+      val generateUUID = udf(() => java.util.UUID.randomUUID().toString)
       var resultDF: DataFrame = null
 
+      val jsonColumn = df.toJSON
+      val value = jsonColumn.select("value")
+
       if (dataset.extractionConfig.get.isBatchEvent.get) {
-        resultDF = df.withColumn(dataset.extractionConfig.get.extractionKey.get, expr(s"transform(array($structExpr), x -> map(${df.columns.map(c => s"'$c', x.$c").mkString(", ")}))"))
+        val updatedValue = value.withColumnRenamed("value", dataset.extractionConfig.get.extractionKey.get)
+        resultDF = updatedValue
+          .withColumn(dataset.extractionConfig.get.extractionKey.get, array(from_json(col(dataset.extractionConfig.get.extractionKey.get), df.schema)))
+          .withColumn(dataset.extractionConfig.get.dedupConfig.get.dedupKey.get, generateUUID())
       } else {
-        resultDF = df.withColumn("event", structExpr)
+        resultDF = df
+          .withColumn("event", structExpr)
+          .withColumn("id", generateUUID())
       }
 
       resultDF = resultDF
