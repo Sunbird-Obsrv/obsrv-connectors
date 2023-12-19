@@ -55,7 +55,7 @@ object JDBCConnectorJob extends Serializable {
           if (recordCount == 0 || validateMaxSize(eventCount, config.eventMaxLimit)) {
             break
           } else {
-            helper.processRecords(config, dataset, batch, data, eventCount, dataSourceConfig, metrics)
+            helper.processRecords(config, dataset, batch, data, recordCount, dataSourceConfig, metrics)
             eventCount += recordCount
           }
         }
@@ -63,9 +63,11 @@ object JDBCConnectorJob extends Serializable {
       logger.info(s"Completed processing dataset: ${dataSourceConfig.datasetId} :: Total number of records are pulled: $eventCount")
       dataSourceConfig
     } catch {
+      // $COVERAGE-OFF$
       case ex: Exception =>
         ex.printStackTrace()
         EventGenerator.generateErrorMetric(config, dataSourceConfig, metrics, "Error while processing the JDBC Connector Job", ex.getMessage, dataset.dataVersion)
+      // $COVERAGE-ON$
     }
   }
 
