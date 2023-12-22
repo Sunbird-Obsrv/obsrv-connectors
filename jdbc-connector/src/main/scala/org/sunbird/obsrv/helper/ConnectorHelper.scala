@@ -88,7 +88,7 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
     val lastRowTimestamp = data.orderBy(data(dsSourceConfig.connectorConfig.timestampColumn).desc).first().getAs[Timestamp](dsSourceConfig.connectorConfig.timestampColumn)
     pushToKafka(config, dataset, dsSourceConfig, data)
     val eventProcessingTime = System.currentTimeMillis() - processStartTime
-    DatasetRegistry.updateConnectorStats(dsSourceConfig.datasetId, lastRowTimestamp, eventCount)
+    DatasetRegistry.updateConnectorStats(dsSourceConfig.id, lastRowTimestamp, eventCount)
     EventGenerator.generateProcessingMetric(config, dataset, batch, eventCount, dsSourceConfig, metrics, eventProcessingTime)
     logger.info(s"Batch $batch is processed successfully :: Number of records pulled: $eventCount")
   }
