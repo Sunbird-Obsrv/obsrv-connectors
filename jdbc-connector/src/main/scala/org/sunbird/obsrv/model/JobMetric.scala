@@ -11,7 +11,7 @@ case class Edata(metric: Map[String, Any], labels: Seq[MetricLabel], err: String
 
 case class MetricLabel(key: String, value: String)
 
-case class Metric(name: String, value: Any)
+//case class Metric(name: String, value: Any)
 
 case class MetricObject(id: String, `type`: String, ver: String)
 

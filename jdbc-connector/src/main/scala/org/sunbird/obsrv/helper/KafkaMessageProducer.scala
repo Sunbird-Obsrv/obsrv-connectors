@@ -26,8 +26,10 @@ case class KafkaMessageProducer(config: JDBCConnectorConfig) {
       producer.send(record)
     } catch {
       case ex: Exception =>
+        // $COVERAGE-OFF$
         logger.error("Error while sending metrics data to Kafka: ", ex.getMessage)
         throw new Exception(s"Error while sending metrics data to Kafka: ${ex.getMessage}")
+        // $COVERAGE-ON$
     }
   }
 }
