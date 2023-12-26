@@ -4,7 +4,7 @@ import com.typesafe.config.Config
 
 class JDBCConnectorConfig (config: Config, args: Array[String]) extends Serializable {
 
-  val kafkaServerUrl: String = config.getString("kafka.bootstrap-servers")
+  val kafkaServerUrl: String = config.getString("kafka.bootstrap.servers")
   val sparkMasterUrl: String = config.getString("spark.master")
   val jdbcConnectionRetry: Int = config.getInt("jdbc.connection.retry")
   val jdbcConnectionRetryDelay: Int = config.getInt("jdbc.connection.retryDelay")

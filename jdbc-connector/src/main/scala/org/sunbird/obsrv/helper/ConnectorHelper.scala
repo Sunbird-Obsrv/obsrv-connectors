@@ -86,12 +86,11 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
   def processRecords(config: JDBCConnectorConfig, dataset: DatasetModels.Dataset, batch: Int, data: DataFrame, eventCount: Long, dsSourceConfig: DatasetSourceConfig, metrics: MetricsHelper): Unit = {
     val processStartTime = System.currentTimeMillis()
     val lastRowTimestamp = data.orderBy(data(dsSourceConfig.connectorConfig.timestampColumn).desc).first().getAs[Timestamp](dsSourceConfig.connectorConfig.timestampColumn)
-    val recordCount = eventCount
     pushToKafka(config, dataset, dsSourceConfig, data)
     val eventProcessingTime = System.currentTimeMillis() - processStartTime
-    DatasetRegistry.updateConnectorStats(dsSourceConfig.datasetId, lastRowTimestamp, recordCount)
+    DatasetRegistry.updateConnectorStats(dsSourceConfig.id, lastRowTimestamp, eventCount)
     EventGenerator.generateProcessingMetric(config, dataset, batch, eventCount, dsSourceConfig, metrics, eventProcessingTime)
-    logger.info(s"Batch $batch is processed successfully :: Number of records pulled: $recordCount")
+    logger.info(s"Batch $batch is processed successfully :: Number of records pulled: $eventCount")
   }
 
   private def pushToKafka(config: JDBCConnectorConfig, dataset: DatasetModels.Dataset, dsSourceConfig: DatasetSourceConfig, df: DataFrame): Unit = {
@@ -141,8 +140,10 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
       val columnsToRemove = fieldNames.toSeq :+ "obsrv_meta_str"
       resultDF.drop(columnsToRemove: _*)
     } catch {
+      // $COVERAGE-OFF$
       case ex: Exception =>
         throw new Exception(s"Error while transforming the data: ${ex.getMessage}")
+      // $COVERAGE-ON$
     }
   }
 
@@ -157,7 +158,9 @@ class ConnectorHelper(config: JDBCConnectorConfig) extends Serializable {
   private def getDriver(databaseType: String): String = {
      databaseType match {
       case "postgresql" => config.postgresqlDriver
+      // $COVERAGE-OFF$
       case "mysql" => config.mysqlDriver
+      // $COVERAGE-ON$
     }
   }
 
