@@ -21,4 +21,6 @@ class KafkaConnectorConfig (override val config: Config) extends BaseJobConfig[S
   private val DUMMY_OUTPUT_TAG = "dummy-events"
   override def successTag(): OutputTag[String] = OutputTag[String](DUMMY_OUTPUT_TAG)
 
+  val connectorVersion: String = config.getString("connector.version")
+
 }
