@@ -1,0 +1,42 @@
+name: Obsrv Connectors build and deploy workflow
+run-name: Workflow run for ${{ github.ref }}
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+    inputs:
+      aws-deploy:
+        type: boolean
+        required: true
+        default: false
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+jobs:
+  check-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      ALLOWED_TAG: ${{ steps.tag-checker.outputs.TRIGGER_ALLOWED }}
+    steps:
+      - name: Check if tag is one in list of current releases
+        id: tag-checker
+        run: |
+          (echo -n TRIGGER_ALLOWED= && echo 'print("${{ github.ref_name }}".split("_")[0]
+          not in "${{ vars.CURRENT_RELEASE }}")' | python3) >> "$GITHUB_OUTPUT"
+
+  run-test-cases:
+    runs-on: ubuntu-latest
+    needs: check-tag
+    if: needs.check-tag.outputs.ALLOWED_TAG ==  'True' && github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: run test cases
+        run: mvn clean install
+          
+
