@@ -12,7 +12,7 @@ on:
         default: false
   pull_request:
     types:
-      - open
+      - opened
       - synchronize
 
 jobs:
