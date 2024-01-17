@@ -36,7 +36,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run test case
+      - name: Run test case when raised a PR
         run: |
           cd ./jdbc-connector
           mvn clean install
