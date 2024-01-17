@@ -38,5 +38,5 @@ jobs:
 
       - name: Run test case
         run: |
-          cd ./object-connectors
+          cd ./jdbc-connector
           mvn clean install
