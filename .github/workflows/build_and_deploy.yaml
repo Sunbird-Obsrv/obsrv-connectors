@@ -43,10 +43,12 @@ jobs:
           path: obsrv-connectors/obsrv-core
           ref: 1.0.2-GA-Bugfixes
 
+      - name: Build obsrv core repository
+        run: |
+          cd obsrv-connectors/obsrv-core
+          mvn clean install -DskipTests
+
       - name: Run test case when raised a PR
         run: |
-          pwd
-          ls
-          which obsrv-core
-#          cd ./jdbc-connector
-#          mvn clean install
+          cd ./jdbc-connector
+          mvn clean install
