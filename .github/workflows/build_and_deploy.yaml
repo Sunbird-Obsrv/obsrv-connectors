@@ -41,7 +41,7 @@ jobs:
         with:
           repository: Sanketika-Obsrv/obsrv-core
           path: obsrv-connectors/obsrv-core
-          ref: ${{ github.ref_name }}
+          ref: 1.0.2-GA-Bugfixes
 
       - name: Run test case when raised a PR
         run: |
