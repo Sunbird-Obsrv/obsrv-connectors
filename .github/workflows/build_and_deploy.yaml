@@ -36,6 +36,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Clone obsrv core repository
+        uses: actions/checkout@v3
+        with:
+          repository: Sanketika-Obsrv/obsrv-core
+          path: config-service/obsrv-core
+          ref: ${{ github.ref_name }}
+
       - name: Run test case when raised a PR
         run: |
           cd ./jdbc-connector
