@@ -47,5 +47,6 @@ jobs:
         run: |
           pwd
           ls
+          which obsrv-core
           cd ./jdbc-connector
           mvn clean install
