@@ -45,7 +45,7 @@ jobs:
 
       - name: Run test case when raised a PR
         run: |
-          cd ./obsrv-core
           pwd
+          ls
           cd ./jdbc-connector
           mvn clean install
