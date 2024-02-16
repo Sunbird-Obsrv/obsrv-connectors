@@ -6,21 +6,24 @@ import org.apache.flink.api.java.typeutils.TypeExtractor
 import org.apache.flink.streaming.api.scala.OutputTag
 import org.sunbird.obsrv.core.streaming.BaseJobConfig
 
-import scala.collection.mutable
+import scala.collection.mutable.{Map => MMap}
 
-class KafkaConnectorConfig (override val config: Config) extends BaseJobConfig[String](config, "KafkaConnectorJob") {
+class KafkaConnectorConfig(override val config: Config) extends BaseJobConfig[String](config, "KafkaConnectorJob") {
 
   private val serialVersionUID = 2905979435603791379L
 
-  implicit val mapTypeInfo: TypeInformation[mutable.Map[String, AnyRef]] = TypeExtractor.getForClass(classOf[mutable.Map[String, AnyRef]])
   implicit val stringTypeInfo: TypeInformation[String] = TypeExtractor.getForClass(classOf[String])
 
-  override def inputTopic(): String = ""
+  val kafkaDefaultInputTopic: String = config.getString("kafka.input.topic")
+  val kafkaDefaultOutputTopic: String = config.getString("kafka.output.topic")
+  override def inputTopic(): String = kafkaDefaultInputTopic
   override def inputConsumer(): String = ""
-
-  private val DUMMY_OUTPUT_TAG = "dummy-events"
-  override def successTag(): OutputTag[String] = OutputTag[String](DUMMY_OUTPUT_TAG)
+  private val SUCCESS_OUTPUT_TAG = "success-events"
+  override def successTag(): OutputTag[String] = OutputTag[String](SUCCESS_OUTPUT_TAG)
 
   val connectorVersion: String = config.getString("connector.version")
+  override def failedEventsOutputTag(): OutputTag[String] = OutputTag[String]("failed-events")
+
+  val successfulDebeziumTransformedCount = "debezium-success-count"
 
 }
