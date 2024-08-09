@@ -1,16 +1,17 @@
 package org.sunbird.obsrv.util
 
 
+import org.sunbird.obsrv.job.JDBCConnectorConfig
+
 import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
-import org.sunbird.obsrv.job.JDBCConnectorConfig
 
 class CipherUtil(config: JDBCConnectorConfig) {
 
   private val algorithm = "AES"
 
-  private val decryptInstance = getInstance(Cipher.DECRYPT_MODE);
+  private val decryptInstance = getInstance(Cipher.DECRYPT_MODE)
 
 
   def decrypt(value: String): String = {

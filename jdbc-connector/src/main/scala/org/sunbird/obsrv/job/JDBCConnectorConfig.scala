@@ -2,7 +2,7 @@ package org.sunbird.obsrv.job
 
 import com.typesafe.config.Config
 
-class JDBCConnectorConfig (config: Config, args: Array[String]) extends Serializable {
+class JDBCConnectorConfig(config: Config) extends Serializable {
 
   val kafkaServerUrl: String = config.getString("kafka.bootstrap.servers")
   val sparkMasterUrl: String = config.getString("spark.master")

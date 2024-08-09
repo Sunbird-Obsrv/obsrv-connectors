@@ -1,8 +1,8 @@
 package org.sunbird.obsrv.helper
 
+import org.sunbird.obsrv.job.JDBCConnectorConfig
 import org.sunbird.obsrv.model.DatasetModels.{Dataset, DatasetSourceConfig}
 import org.sunbird.obsrv.model.{Edata, MetricLabel}
-import org.sunbird.obsrv.job.JDBCConnectorConfig
 
 import java.util.UUID
 import scala.collection.mutable
@@ -10,8 +10,8 @@ import scala.collection.mutable
 
 object EventGenerator {
 
-  def getObsrvMeta(dsSourceConfig: DatasetSourceConfig, config: JDBCConnectorConfig): mutable.Map[String,Any] = {
-    val obsrvMeta = mutable.Map[String,Any]()
+  def getObsrvMeta(dsSourceConfig: DatasetSourceConfig, config: JDBCConnectorConfig): mutable.Map[String, Any] = {
+    val obsrvMeta = mutable.Map[String, Any]()
     obsrvMeta.put("syncts", System.currentTimeMillis())
     obsrvMeta.put("flags", Map())
     obsrvMeta.put("timespans", Map())

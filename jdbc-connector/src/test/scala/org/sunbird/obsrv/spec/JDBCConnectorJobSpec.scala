@@ -7,21 +7,19 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import org.scalatest.Matchers._
 import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 import org.sunbird.obsrv.core.util.{PostgresConnect, PostgresConnectionConfig}
-import org.sunbird.obsrv.fixture.EventFixture
 import org.sunbird.obsrv.job.{JDBCConnectorConfig, JDBCConnectorJob}
 import org.sunbird.obsrv.model.JobMetric
 import org.sunbird.obsrv.registry.DatasetRegistry
-import org.sunbird.obsrv.util.{CipherUtil, JSONUtil}
+import org.sunbird.obsrv.util.JSONUtil
 
 import scala.collection.JavaConverters._
-import scala.collection.compat._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration._
 
 
 class JDBCConnectorJobSpec extends FlatSpec with EmbeddedKafka with BeforeAndAfterAll {
   val appConfig: Config = ConfigFactory.load("test.conf").withFallback(ConfigFactory.systemEnvironment())
-  val config = new JDBCConnectorConfig(appConfig, Array())
+  val config = new JDBCConnectorConfig(appConfig)
 
   val postgresConfig: PostgresConnectionConfig = PostgresConnectionConfig(
     user = appConfig.getString("postgres.user"),
@@ -106,7 +104,7 @@ class JDBCConnectorJobSpec extends FlatSpec with EmbeddedKafka with BeforeAndAft
     msg
   }
 
-  def resetTables(postgresConnect: PostgresConnect) : Unit = {
+  def resetTables(postgresConnect: PostgresConnect): Unit = {
     postgresConnect.execute("TRUNCATE TABLE datasets;")
     postgresConnect.execute("TRUNCATE TABLE datasources;")
     postgresConnect.execute("TRUNCATE TABLE dataset_transformations;")
@@ -170,7 +168,7 @@ class JDBCConnectorJobSpec extends FlatSpec with EmbeddedKafka with BeforeAndAft
   }
 
   "JDBCConnectorJob" should "run successfully generating metrics" in {
-    val datasets = DatasetRegistry.getAllDatasets("dataset")
+    val datasets = DatasetRegistry.getAllDatasets(None)
     val datasetSourceConfigs = DatasetRegistry.getAllDatasetSourceConfig()
     JDBCConnectorJob.main(Array())
     assert(datasetSourceConfigs.get.size equals 2)
@@ -198,7 +196,7 @@ class JDBCConnectorJobSpec extends FlatSpec with EmbeddedKafka with BeforeAndAft
     val postgresConnect = new PostgresConnect(postgresConfig)
     resetTables(postgresConnect)
     insertAuthErrors(postgresConnect = postgresConnect)
-    val datasets = DatasetRegistry.getAllDatasets("dataset")
+    val datasets = DatasetRegistry.getAllDatasets(None)
     val datasetSourceConfigs = DatasetRegistry.getAllDatasetSourceConfig()
     JDBCConnectorJob.main(Array())
     assert(datasetSourceConfigs.get.size equals 5)

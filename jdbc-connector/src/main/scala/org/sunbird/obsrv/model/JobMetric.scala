@@ -26,4 +26,5 @@ trait IJobMetric {
   val `object`: MetricObject
   val edata: Edata
 }
+
 case class JobMetric(eid: String = "METRIC", ets: Timestamp = new Timestamp(System.currentTimeMillis()), mid: String = UUID.randomUUID().toString, actor: Actor, context: Context, `object`: MetricObject, edata: Edata) extends IJobMetric
